@@ -1,6 +1,6 @@
 # Virtual environment
-ticker-prediction
-ticker-prediction/*/
+macro-cycle
+macro-cycle/*/
 
 # API keys (if necessary)
 .env
