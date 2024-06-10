@@ -1,0 +1,11 @@
+yfinance
+pandas
+fredapi
+tensorflow
+cython
+numpy
+python-dotenv
+ncps
+seaborn
+scipy
+matplotlib
