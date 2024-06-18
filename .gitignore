@@ -12,3 +12,6 @@ macro-cycle/*/
 # Data
 data/processed/*
 data/raw/*
+
+# Models
+models/*.keras

@@ -1,11 +1,11 @@
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+import glob
 import os
 from tensorflow import keras
 from tensorflow.keras.models import load_model
 from sklearn.preprocessing import StandardScaler
-from ncps.tf import LTC, LTCCell
 
 # Suppress warnings
 tf.get_logger().setLevel('ERROR')
@@ -26,18 +26,13 @@ def preprocess_data(df, features):
 
     return X_scaled
 
-# Load the trained model
-def load_trained_model(model_path):
-    custom_objects = {'LTC': LTC, 'LTCCell': LTCCell}
-    return keras.models.load_model(model_path, custom_objects=custom_objects)
-
 # Predict macroeconomic outputs
 def predict_outputs(model, X):
     y_pred = model.predict(X)
     
     y_pred_recession_1m = (y_pred[0].flatten() > 0.5).astype(int)
     y_pred_recession_3m = (y_pred[1].flatten() > 0.5).astype(int)
-    y_pred_phase = np.argmax(y_pred[2].reshape(-1, y_pred[2].shape[-1]), axis=-1)
+    y_pred_phase = (y_pred[2].flatten() > 0.5).astype(int)  # Binary classification
     
     return y_pred_recession_1m, y_pred_recession_3m, y_pred_phase
 
@@ -55,10 +50,18 @@ def main(input_file, model_file):
     X = preprocess_data(df, features)
 
     # Load model
-    model = load_trained_model(model_file)
+    try:
+        model = load_model(model_file)
+    except Exception as e:
+        print(f"Error loading the model: {e}")
+        return
 
     # Predict outputs
-    y_pred_recession_1m, y_pred_recession_3m, y_pred_phase = predict_outputs(model, X)
+    try:
+        y_pred_recession_1m, y_pred_recession_3m, y_pred_phase = predict_outputs(model, X)
+    except Exception as e:
+        print(f"Error during prediction: {e}")
+        return
 
     # Add predictions to the dataframe and save to CSV
     df['predicted_recession_1m'] = y_pred_recession_1m
@@ -69,5 +72,6 @@ def main(input_file, model_file):
 
 if __name__ == "__main__":
     input_file = os.path.join('data', 'processed', 'all_data.csv')
-    model_file = 'ltc_model.h5'
+    # Load latest model file
+    model_file = max(glob.glob('models/*.keras'), key=os.path.getctime)
     main(input_file, model_file)

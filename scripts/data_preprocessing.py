@@ -94,33 +94,22 @@ def preprocess_consumer_debt(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 def preprocess_recessions(df: pd.DataFrame, recessions: list) -> pd.DataFrame:
-    df['phase'] = 1  # Default to Expansion
+    """
+    Indicates expansion or recession periods in the DataFrame.
+    Features:
+    - phase: 0 for expansion, 1 for recession
+    - recession_1m: 1 if a recession starts in the next month, 0 otherwise
+    - recession_3m: 1 if a recession starts in the next 3 months, 0 otherwise
+    """
+
+    df['phase'] = 0
     df['recession_1m'] = 0
     df['recession_3m'] = 0
 
     for start, end in recessions:
-        recession_period = (df['date'] >= start) & (df['date'] <= end)
-        recession_1m_period = (df['date'] >= start) & (df['date'] <= end - pd.DateOffset(days=30))
-        recession_3m_period = (df['date'] >= start) & (df['date'] <= end - pd.DateOffset(days=90))
-        
-        df.loc[recession_period, 'phase'] = 0  # Recession
-        df.loc[recession_1m_period, 'recession_1m'] = 1
-        df.loc[recession_3m_period, 'recession_3m'] = 1
-
-    peaks = [start for start, end in recessions]
-    troughs = [end for start, end in recessions]
-
-    peaks = [datetime.datetime(start.year, start.month, 1) for start in peaks]
-    troughs = [datetime.datetime(end.year, end.month, 1) + pd.DateOffset(months=1, days=-1) for end in troughs]
-    
-    for peak in peaks:
-        df.loc[df['date'] == peak, 'phase'] = 2  # Peak
-    for trough in troughs:
-        df.loc[df['date'] == trough, 'phase'] = 3  # Trough
-
-    df['phase'] = df['phase'].ffill()
-    df['recession_1m'] = df['recession_1m'].ffill()
-    df['recession_3m'] = df['recession_3m'].ffill()
+        df.loc[(df['date'] >= start) & (df['date'] <= end), 'phase'] = 1
+        df.loc[(df['date'] == (end + datetime.timedelta(days=30)), 'recession_1m')] = 1
+        df.loc[(df['date'] == (end + datetime.timedelta(days=90)), 'recession_3m')] = 1
 
     return df
 
