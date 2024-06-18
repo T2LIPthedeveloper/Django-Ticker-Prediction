@@ -1,6 +1,10 @@
 # Virtual environment
 macro-cycle
 macro-cycle/*/
+.venv
+.venv/*
+.vscode
+.vscode/*/
 
 # API keys (if necessary)
 .env

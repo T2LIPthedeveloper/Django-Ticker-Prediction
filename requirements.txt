@@ -8,4 +8,8 @@ python-dotenv
 ncps
 seaborn
 scipy
+scikit-learn
 matplotlib
+statsmodels
+imblearn
+ipykernel

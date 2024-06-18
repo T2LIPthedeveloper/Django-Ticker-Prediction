@@ -89,17 +89,17 @@ def get_yield_curve_table():
     return 1 if yield_table.shape[0] > 0 else 0
     pass
 
-def get_stock_market_table():
-    """
-    Get the stock market from FRED
-    """
-    stock_table = fred.get_series('SP500')
-    stock_table = pd.DataFrame(stock_table).reset_index()
-    stock_table.columns = ['date', 'sp500']
-    stock_table.date = stock_table.date.astype(str)
-    save_to_csv(stock_table, 'data/raw/sp500.csv')
-    return 1 if stock_table.shape[0] > 0 else 0
-    pass
+# def get_stock_market_table():
+#     """
+#     Get the stock market from FRED
+#     """
+#     stock_table = fred.get_series('SP500')
+#     stock_table = pd.DataFrame(stock_table).reset_index()
+#     stock_table.columns = ['date', 'sp500']
+#     stock_table.date = stock_table.date.astype(str)
+#     save_to_csv(stock_table, 'data/raw/sp500.csv')
+#     return 1 if stock_table.shape[0] > 0 else 0
+#     pass
 
 def get_building_permits_table():
     """
@@ -191,7 +191,7 @@ def main():
     print("CPI data collected") if get_cpi_table() else (print("Inflation data not collected") and exit(1))
     print("Interest rate data collected") if get_interest_rate_table() else (print("Interest rate data not collected") and exit(1))
     print("Yield curve data collected") if get_yield_curve_table() else (print("Yield curve data not collected") and exit(1))
-    print("Stock market data collected") if get_stock_market_table() else (print("Stock market data not collected") and exit(1))
+    # print("Stock market data collected") if get_stock_market_table() else (print("Stock market data not collected") and exit(1))
     print("Building permits data collected") if get_building_permits_table() else (print("Building permits data not collected") and exit(1))
     print("Consumer confidence data collected") if get_consumer_confidence_table() else (print("Consumer confidence data not collected") and exit(1))
     print("Industrial production data collected") if get_industrial_production_table() else (print("Industrial production data not collected") and exit(1))
