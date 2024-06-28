@@ -1,77 +1,121 @@
+import argparse
+from matplotlib import pyplot as plt
 import numpy as np
 import pandas as pd
+from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
 import tensorflow as tf
 import glob
 import os
-from tensorflow import keras
 from tensorflow.keras.models import load_model
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import MinMaxScaler
 
 # Suppress warnings
 tf.get_logger().setLevel('ERROR')
 
-# Load preprocessed data
-def load_data(file_path: str):
-    return pd.read_csv(file_path)
+def plot_metrics(history):
+    plt.figure(figsize=(12, 8))
 
-# Preprocess data for the model
-def preprocess_data(df, features):
-    scaler = StandardScaler()
+    plt.subplot(2, 1, 1)
+    plt.plot(history.history['accuracy'], label='Train Accuracy')
+    plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
+    plt.legend()
+    plt.title('Accuracy over Epochs')
 
-    X = df[features]
-    X_scaled = scaler.fit_transform(X)
+    plt.subplot(2, 1, 2)
+    plt.plot(history.history['loss'], label='Train Loss')
+    plt.plot(history.history['val_loss'], label='Validation Loss')
+    plt.legend()
+    plt.title('Loss over Epochs')
 
-    # Reshape for LSTM/LTC which expects 3D input [samples, timesteps, features]
-    X_scaled = X_scaled.reshape((X_scaled.shape[0], 1, X_scaled.shape[1]))
+    plt.show()
 
-    return X_scaled
-
-# Predict macroeconomic outputs
-def predict_outputs(model, X):
-    y_pred = model.predict(X)
+def generate_X_y(df):
+    targets = ['is_recession', 'recession_in_1q', 'recession_in_2q', 'recession_in_4q']
+    X = df.drop(targets, axis=1).values
+    y = df[targets].values
     
-    y_pred_recession_1m = (y_pred[0].flatten() > 0.5).astype(int)
-    y_pred_recession_3m = (y_pred[1].flatten() > 0.5).astype(int)
-    y_pred_phase = (y_pred[2].flatten() > 0.5).astype(int)  # Binary classification
+    scaler = MinMaxScaler()
+    scaled_features = scaler.fit_transform(df.drop(columns=targets))
     
-    return y_pred_recession_1m, y_pred_recession_3m, y_pred_phase
+    def create_sequences(data, targets, seq_length):
+        X, y = [], []
+        for i in range(len(data) - seq_length):
+            X.append(data[i:i+seq_length])
+            y.append(targets[i+seq_length])
+        return np.array(X), np.array(y)
 
-# Main function for prediction
-def main(input_file, model_file):
-    features = ['unrate', 'unrate_1m_pct', 'unrate_3m_pct', 'cpi', 'cpi_1m_pct', 'interest_rate', 'yield_curve', 
-                'adj_close', 'building_permits', 'consumer_confidence', 'industrial_production', 
-                'industrial_production_1m_pct', 'corporate_profits', 'corporate_profits_q_pct', 
-                'consumer_debt', 'consumer_debt_q_pct']
+    # Sequence length = number of months of history
+    seq_len = 12
+    X, y = create_sequences(scaled_features, y, seq_len)
+    return X, y
 
-    # Load data
-    df = load_data(input_file)
+def evaluate_model_performance(model, X_test, y_test):
+    y_pred = (model.predict(X_test) > 0.5).astype(int)
 
-    # Preprocess data
-    X = preprocess_data(df, features)
+    accuracy = accuracy_score(y_test, y_pred)
+    recall = recall_score(y_test, y_pred, average='macro')
+    precision = precision_score(y_test, y_pred, average='macro')
+    f1 = f1_score(y_test, y_pred, average='macro')
 
-    # Load model
-    try:
-        model = load_model(model_file)
-    except Exception as e:
-        print(f"Error loading the model: {e}")
-        return
+    print(f'Accuracy: {accuracy}')
+    print(f'Recall: {recall}')
+    print(f'Precision: {precision}')
+    print(f'F1 Score: {f1}')
+    
+    return accuracy, recall, precision, f1, y_pred
 
-    # Predict outputs
-    try:
-        y_pred_recession_1m, y_pred_recession_3m, y_pred_phase = predict_outputs(model, X)
-    except Exception as e:
-        print(f"Error during prediction: {e}")
-        return
+def plot_recession_predictions(y_true, y_pred, title='Recession Predictions vs Actual Values'):
+    plt.figure(figsize=(12, 8))
 
-    # Add predictions to the dataframe and save to CSV
-    df['predicted_recession_1m'] = y_pred_recession_1m
-    df['predicted_recession_3m'] = y_pred_recession_3m
-    df['predicted_phase'] = y_pred_phase
-    df.to_csv('predicted_outputs.csv', index=False)
-    print(f"Predictions saved to predicted_outputs.csv")
+    quarters = ['Now', 'In 1 Quarter', 'In 2 Quarters', 'In 4 Quarters']
+    for i, quarter in enumerate(quarters):
+        plt.subplot(4, 1, i+1)
+        plt.plot(y_true[:, i], label=f'Actual Recession {quarter}', color='blue')
+        plt.plot(y_pred[:, i], label=f'Predicted Recession {quarter}', color='red')
+        plt.legend()
+        plt.title(f'{title} - {quarter}')
+        plt.xlabel('Time')
+        plt.ylabel('Recession Indicator')
+
+    plt.tight_layout()
+    plt.show()
 
 if __name__ == "__main__":
-    input_file = os.path.join('data', 'processed', 'all_data.csv')
-    # Load latest model file
-    model_file = max(glob.glob('models/*.keras'), key=os.path.getctime)
-    main(input_file, model_file)
+    parser = argparse.ArgumentParser(description='Recession prediction using LSTM or LTC model.')
+    parser.add_argument('--model', type=str, required=True, choices=['LSTM', 'LTC'],
+                        help='Specify the model type: LSTM or LTC')
+    args = parser.parse_args()
+
+    # Load data
+    df_final = pd.read_csv('data/processed/final_data.csv')
+
+    # Search for most recent model in the 'models' directory with format '{model_type}_model_{date}.keras'
+    model_files = glob.glob(f'models/{args.model.lower()}_model_*.keras')
+    if not model_files:
+        raise FileNotFoundError(f"No model files found for model type {args.model}")
+    
+    # Sort by date and get most recent
+    model_file = sorted(model_files, key=os.path.getmtime)[-1]
+    
+    # Load most recent model history with format '{model_type}_model_history_{date}.csv'
+    history_files = glob.glob(f'models/{args.model.lower()}_model_history_*.csv')
+
+    if not history_files:
+        raise FileNotFoundError(f"No history files found for model type {args.model}")
+    
+    # Sort by date and get most recent
+    history_file = sorted(history_files, key=os.path.getmtime)[-1]
+
+    # Evaluate model performance
+    model = load_model(model_file)
+    history = pd.read_csv(history_file)
+    plot_metrics(history)
+
+    # Generate X and y
+    X, y = generate_X_y(df_final)
+
+    accuracy, recall, precision, f1, y_pred = evaluate_model_performance(model, X, y)
+    print(f"Metrics for full dataset:\nAccuracy: {accuracy}\nRecall: {recall}\nPrecision: {precision}\nF1 Score: {f1}")
+
+    # Plot predictions vs actual values
+    plot_recession_predictions(y, y_pred)

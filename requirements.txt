@@ -2,14 +2,11 @@ yfinance
 pandas
 fredapi
 tensorflow
-cython
 numpy
 python-dotenv
-ncps
+keras-ncp
 seaborn
-scipy
 scikit-learn
 matplotlib
 statsmodels
-imblearn
 ipykernel
